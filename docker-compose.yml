@@ -1,15 +1,21 @@
-version: '3.8'
 services:
-  backend:
-    build: ./backend
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    restart: always
     ports:
-      - "6000:6000"
-    depends_on:
-      - mongo
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:3000"
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -t '$$SYS/#' -C 1 2>/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   mongo:
     image: mongo:6.0
     container_name: mongo
@@ -19,6 +25,57 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: example
-      MONGO_INITDB_DATABASE: mydatabase
+      MONGO_INITDB_DATABASE: sensorsdb
     volumes:
       - ./mongodb:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "-u", "root", "-p", "example", "--authenticationDatabase", "admin", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: backend
+    restart: always
+    ports:
+      - "5001:5001"
+    environment:
+      - ASPNETCORE_URLS=http://+:5001
+      - MONGODB_CONNECTION_STRING=mongodb://root:example@mongo:27017/?authSource=admin
+      - MONGODB_DATABASE=sensorsdb
+      - MQTT_BROKER=mosquitto
+      - MQTT_PORT=1883
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5001/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:5001
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  sensors:
+    build: ./sensors
+    container_name: sensors
+    restart: always
+    environment:
+      - MQTT_BROKER=mosquitto
+      - MQTT_PORT=1883
+    depends_on:
+      mosquitto:
+        condition: service_healthy
