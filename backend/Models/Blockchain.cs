@@ -69,7 +69,6 @@ public class SensorTokenBalance
 /// </summary>
 public class BlockchainConfig
 {
-    public bool Enabled { get; set; }
     public string RpcUrl { get; set; } = string.Empty;
     public string ContractAddress { get; set; } = string.Empty;
     public string OwnerPrivateKey { get; set; } = string.Empty;

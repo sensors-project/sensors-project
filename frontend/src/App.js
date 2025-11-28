@@ -202,18 +202,17 @@ function App() {
             Dashboard
           </button>
           <button
-            className={activeTab === 'data' ? 'active' : ''}
-            onClick={() => setActiveTab('data')}
-          >
-            Data Table
-          </button>
+  className = {activeTab === 'data' ? 'active' : ''} onClick =
+      {() => setActiveTab('data')} >
+      Data Table<
+          /button>
           <button 
             className={activeTab === 'charts' ? 'active' : ''} 
             onClick={() => setActiveTab('charts')}
           >
             Charts
-          </button>
-          <button 
+          </button><
+      button
             className={activeTab === 'tokens' ? 'active' : ''} 
             onClick={() => setActiveTab('tokens')}
           >
@@ -390,12 +389,15 @@ function App() {
                 <section className='data-table'>
                   <h2>Sensor Data</h2>
               <p className='auto-refresh-note'>Auto-refreshes every 5 seconds</p>
-                  {loading ? (
-                    <p>Loading...</p>
+                  {
+      loading ?
+          (<p>Loading...<
+              /p>
                   ) : error ? (
-                    <p className='error'>{error}</p>
-                  ) : sensorData.length === 0 ? (
-                    <p>No data available. Start the sensors to begin collecting data.</p>
+                    <p className='error'>{error}</p>) :
+          sensorData.length === 0 ?
+          (<p>No data available.Start the sensors to begin collecting data.<
+               /p>
                   ) : (
                     <>
                       <table>
@@ -404,40 +406,40 @@ function App() {
                             <th onClick={() => handleSort('sensorId')}>
                               Sensor ID {filters.sortBy === 'sensorId' && (filters.sortDescending ? '↓' : '↑')}
                             </th>
-                            <th onClick={() => handleSort('sensorType')}>
-                              Type {filters.sortBy === 'sensorType' && (filters.sortDescending ? '↓' : '↑')}
-                            </th>
+           <th onClick = {() => handleSort('sensorType')}>Type{
+               filters.sortBy === 'sensorType' &&
+               (filters.sortDescending ? '↓' : '↑')} <
+           /th>
                             <th onClick={() => handleSort('value')}>
                               Value {filters.sortBy === 'value' && (filters.sortDescending ? '↓' : '↑')}
-                            </th>
-                            <th>Unit</th>
+                            </th >
+           <th>Unit<
+               /th>
                             <th onClick={() => handleSort('timestamp')}>
                               Timestamp {filters.sortBy === 'timestamp' && (filters.sortDescending ? '↓' : '↑')}
                             </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {sensorData.map((item, index) => (
-                            <tr key={item.id || index}>
-                              <td>{item.sensorId}</td>
-                              <td>{item.sensorType}</td>
-                              <td>{(item.value ?? 0).toFixed(2)}</td>
-                              <td>{item.unit}</td>
-                              <td>{new Date(item.timestamp).toLocaleString()}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      
-                      <div className='pagination'>
-                        <button
-                          disabled={filters.page <= 1}
-                          onClick={() => setFilters(prev => ({...prev, page: prev.page - 1}))}
-                        >
-                          Previous
-                        </button>
-                        <span>Page {filters.page} of {totalPages}</span>
-                        <button
+           </tr>
+                        </thead><tbody>{sensorData.map(
+               (item, index) => (
+                   <tr key = {item.id || index}><td>{item.sensorId} <
+                   /td>
+                              <td>{item.sensorType}</td >
+                   <td>{(item.value ?? 0).toFixed(2)} <
+                   /td>
+                              <td>{item.unit}</td >
+                   <td>{new Date(item.timestamp).toLocaleString()} <
+                   /td>
+                            </tr >))} <
+           /tbody>
+                      </table >
+
+           <div className = 'pagination'>< button
+      disabled = {filters.page <= 1} onClick =
+          {() => setFilters(prev => ({...prev, page: prev.page - 1}))} >
+          Previous<
+              /button>
+                        <span>Page {filters.page} of {totalPages}</span><
+          button
                           disabled={filters.page >= totalPages}
                           onClick={() => setFilters(prev => ({ ...prev, page: prev.page + 1 }))}
                         >
@@ -456,8 +458,6 @@ function App() {
               <h2>Blockchain Status</h2>
               {blockchainStatus && (
                 <div className='status-info'>
-                  <p><strong>Status:</strong> {blockchainStatus.enabled ? (blockchainStatus.connected ? 'Connected' : 'Enabled (Simulation Mode)') : 'Disabled'}</p>
-                  {blockchainStatus.enabled && (
                     <>
                       <p><strong>Network:</strong> Chain ID {blockchainStatus.chainId}</p>
                       <p><strong>Reward per Message:</strong> {blockchainStatus.rewardAmount} SENS</p>
@@ -465,7 +465,6 @@ function App() {
                         <p><strong>Contract:</strong> <code>{blockchainStatus.contractAddress}</code></p>
                       )}
                     </>
-                  )}
                 </div>
               )}
               <button className='refresh-btn' onClick={fetchBlockchainData} disabled={blockchainLoading}>

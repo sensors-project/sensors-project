@@ -1,3 +1,4 @@
+using System.Net.Mime;
 using System.Numerics;
 using Nethereum.Web3;
 using Nethereum.Web3.Accounts;
@@ -71,32 +72,25 @@ public class BlockchainService
     private readonly Web3? _web3;
     private readonly Account? _account;
 
-    public bool IsEnabled => _config.Enabled && _web3 != null;
-
     public BlockchainService(IConfiguration configuration, ILogger<BlockchainService> logger)
     {
         _logger = logger;
-        
-        // Load blockchain configuration with safe parsing
-        var enabledStr = (configuration["BLOCKCHAIN_ENABLED"] 
-            ?? Environment.GetEnvironmentVariable("BLOCKCHAIN_ENABLED") 
-            ?? "false").ToLowerInvariant();
-        bool.TryParse(enabledStr, out var enabled);
 
-        var chainIdStr = configuration["BLOCKCHAIN_CHAIN_ID"] 
-            ?? Environment.GetEnvironmentVariable("BLOCKCHAIN_CHAIN_ID") 
-            ?? "31337";
+        // Load blockchain configuration with safe parsing
+        var chainIdStr = configuration["BLOCKCHAIN_CHAIN_ID"]
+                         ?? Environment.GetEnvironmentVariable("BLOCKCHAIN_CHAIN_ID")
+                         ?? "31337";
         if (!int.TryParse(chainIdStr, out var chainId))
         {
             chainId = 31337;
             logger.LogWarning("Invalid BLOCKCHAIN_CHAIN_ID value '{Value}', using default 31337", chainIdStr);
         }
 
-        var rewardStr = configuration["BLOCKCHAIN_REWARD_AMOUNT"] 
-            ?? Environment.GetEnvironmentVariable("BLOCKCHAIN_REWARD_AMOUNT") 
-            ?? "1";
-        if (!decimal.TryParse(rewardStr, System.Globalization.NumberStyles.Any, 
-            System.Globalization.CultureInfo.InvariantCulture, out var rewardAmount))
+        var rewardStr = configuration["BLOCKCHAIN_REWARD_AMOUNT"]
+                        ?? Environment.GetEnvironmentVariable("BLOCKCHAIN_REWARD_AMOUNT")
+                        ?? "1";
+        if (!decimal.TryParse(rewardStr, System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out var rewardAmount))
         {
             rewardAmount = 1m;
             logger.LogWarning("Invalid BLOCKCHAIN_REWARD_AMOUNT value '{Value}', using default 1", rewardStr);
@@ -104,65 +98,53 @@ public class BlockchainService
 
         _config = new BlockchainConfig
         {
-            Enabled = enabled,
-            RpcUrl = configuration["BLOCKCHAIN_RPC_URL"] 
-                ?? Environment.GetEnvironmentVariable("BLOCKCHAIN_RPC_URL") 
-                ?? "http://localhost:8545",
-            ContractAddress = configuration["BLOCKCHAIN_CONTRACT_ADDRESS"] 
-                ?? Environment.GetEnvironmentVariable("BLOCKCHAIN_CONTRACT_ADDRESS") 
-                ?? "",
-            OwnerPrivateKey = configuration["BLOCKCHAIN_PRIVATE_KEY"] 
-                ?? Environment.GetEnvironmentVariable("BLOCKCHAIN_PRIVATE_KEY") 
-                ?? "",
+            RpcUrl = configuration["BLOCKCHAIN_RPC_URL"]
+                     ?? Environment.GetEnvironmentVariable("BLOCKCHAIN_RPC_URL")
+                     ?? "http://localhost:8545",
+            ContractAddress = configuration["BLOCKCHAIN_CONTRACT_ADDRESS"]
+                              ?? Environment.GetEnvironmentVariable("BLOCKCHAIN_CONTRACT_ADDRESS")
+                              ?? "",
+            OwnerPrivateKey = configuration["BLOCKCHAIN_PRIVATE_KEY"]
+                              ?? Environment.GetEnvironmentVariable("BLOCKCHAIN_PRIVATE_KEY")
+                              ?? "",
             ChainId = chainId,
             RewardAmount = rewardAmount
         };
 
         // Setup MongoDB collections
-        var connectionString = configuration["MONGODB_CONNECTION_STRING"] 
-            ?? Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING")
-            ?? "mongodb://root:example@localhost:27017/?authSource=admin";
-        
-        var databaseName = configuration["MONGODB_DATABASE"] 
-            ?? Environment.GetEnvironmentVariable("MONGODB_DATABASE")
-            ?? "sensorsdb";
+        var connectionString = configuration["MONGODB_CONNECTION_STRING"]
+                               ?? Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING")
+                               ?? "mongodb://root:example@localhost:27017/?authSource=admin";
+
+        var databaseName = configuration["MONGODB_DATABASE"]
+                           ?? Environment.GetEnvironmentVariable("MONGODB_DATABASE")
+                           ?? "sensorsdb";
+
+        if (string.IsNullOrEmpty(_config.ContractAddress) || string.IsNullOrEmpty(_config.OwnerPrivateKey))
+        {
+            _logger.LogCritical("Contract address or owner private key is not set.");
+            System.Environment.Exit(1);
+        }
 
         var client = new MongoClient(connectionString);
         var database = client.GetDatabase(databaseName);
         _sensorWalletCollection = database.GetCollection<SensorWallet>("sensor_wallets");
         _tokenTransferCollection = database.GetCollection<TokenTransfer>("token_transfers");
 
-        // Create indexes
         CreateIndexes();
 
-        if (_config.Enabled)
+        try
         {
-            if (string.IsNullOrEmpty(_config.OwnerPrivateKey))
-            {
-                _logger.LogWarning("Blockchain is enabled but private key is not set. Blockchain features will be limited.");
-                _web3 = new Web3(_config.RpcUrl);
-            }
-            else
-            {
-                try
-                {
-                    _account = new Account(_config.OwnerPrivateKey, _config.ChainId);
-                    _web3 = new Web3(_account, _config.RpcUrl);
-                    _logger.LogInformation("Blockchain service initialized with account: {Address}", _account.Address);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to initialize blockchain account");
-                    _web3 = new Web3(_config.RpcUrl);
-                }
-            }
+            _account = new Account(_config.OwnerPrivateKey, _config.ChainId);
+            _web3 = new Web3(_account, _config.RpcUrl);
+            _logger.LogInformation("Blockchain service initialized with account: {Address}", _account.Address);
 
-            _logger.LogInformation("Blockchain service enabled. RPC: {RpcUrl}, Contract: {Contract}", 
+            _logger.LogInformation("Blockchain service enabled. RPC: {RpcUrl}, Contract: {Contract}",
                 _config.RpcUrl, _config.ContractAddress);
         }
-        else
+        catch (Exception ex)
         {
-            _logger.LogInformation("Blockchain service is disabled");
+            throw new Exception("Blockchain service initialization failed.", ex);
         }
     }
 
@@ -208,15 +190,13 @@ public class BlockchainService
         };
 
         await _sensorWalletCollection.InsertOneAsync(newWallet);
-        _logger.LogInformation("Created wallet for sensor {SensorId}: {WalletAddress}", sensorId, newWallet.WalletAddress);
+        _logger.LogInformation("Created wallet for sensor {SensorId}: {WalletAddress}", sensorId,
+            newWallet.WalletAddress);
 
-        // Register on blockchain if enabled
-        if (IsEnabled && !string.IsNullOrEmpty(_config.ContractAddress))
-        {
-            await RegisterSensorOnBlockchainAsync(sensorId, newWallet.WalletAddress);
-            newWallet.IsRegistered = true;
-            await _sensorWalletCollection.ReplaceOneAsync(w => w.SensorId == sensorId, newWallet);
-        }
+
+        await RegisterSensorOnBlockchainAsync(sensorId, newWallet.WalletAddress);
+        newWallet.IsRegistered = true;
+        await _sensorWalletCollection.ReplaceOneAsync(w => w.SensorId == sensorId, newWallet);
 
         return newWallet;
     }
@@ -241,12 +221,6 @@ public class BlockchainService
     /// </summary>
     public async Task<bool> RegisterSensorOnBlockchainAsync(int sensorId, string walletAddress)
     {
-        if (!IsEnabled || string.IsNullOrEmpty(_config.ContractAddress) || _account == null)
-        {
-            _logger.LogWarning("Cannot register sensor on blockchain - service not fully configured");
-            return false;
-        }
-
         try
         {
             var contract = _web3!.Eth.GetContractHandler(_config.ContractAddress);
@@ -257,7 +231,7 @@ public class BlockchainService
             };
 
             var receipt = await contract.SendRequestAndWaitForReceiptAsync(registerFunction);
-            _logger.LogInformation("Registered sensor {SensorId} on blockchain. TX: {TxHash}", 
+            _logger.LogInformation("Registered sensor {SensorId} on blockchain. TX: {TxHash}",
                 sensorId, receipt.TransactionHash);
 
             return receipt.Status.Value == 1;
@@ -287,21 +261,10 @@ public class BlockchainService
 
         await _tokenTransferCollection.InsertOneAsync(transfer);
 
-        if (!IsEnabled || string.IsNullOrEmpty(_config.ContractAddress) || _account == null)
-        {
-            // In simulation mode, just mark as completed
-            transfer.Status = "simulated";
-            transfer.TransactionHash = $"sim_{Guid.NewGuid():N}";
-            await _tokenTransferCollection.ReplaceOneAsync(t => t.Id == transfer.Id, transfer);
-            
-            _logger.LogDebug("Simulated reward for sensor {SensorId}: {Amount} tokens", sensorId, _config.RewardAmount);
-            return transfer;
-        }
-
         try
         {
             var contract = _web3!.Eth.GetContractHandler(_config.ContractAddress);
-            
+
             // Use rewardOrRegisterSensor which auto-registers if needed
             var rewardFunction = new RewardOrRegisterSensorFunction
             {
@@ -310,7 +273,7 @@ public class BlockchainService
             };
 
             var receipt = await contract.SendRequestAndWaitForReceiptAsync(rewardFunction);
-            
+
             transfer.TransactionHash = receipt.TransactionHash;
             transfer.Status = receipt.Status.Value == 1 ? "completed" : "failed";
             await _tokenTransferCollection.ReplaceOneAsync(t => t.Id == transfer.Id, transfer);
@@ -322,7 +285,7 @@ public class BlockchainService
                 await _sensorWalletCollection.ReplaceOneAsync(w => w.SensorId == sensorId, wallet);
             }
 
-            _logger.LogInformation("Rewarded sensor {SensorId} with tokens. TX: {TxHash}", 
+            _logger.LogInformation("Rewarded sensor {SensorId} with tokens. TX: {TxHash}",
                 sensorId, receipt.TransactionHash);
 
             return transfer;
@@ -341,11 +304,6 @@ public class BlockchainService
     /// </summary>
     public async Task<decimal> GetSensorBalanceFromBlockchainAsync(int sensorId)
     {
-        if (!IsEnabled || string.IsNullOrEmpty(_config.ContractAddress))
-        {
-            return await GetSimulatedBalanceAsync(sensorId);
-        }
-
         try
         {
             var contract = _web3!.Eth.GetContractHandler(_config.ContractAddress);
@@ -359,21 +317,8 @@ public class BlockchainService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to get balance for sensor {SensorId} from blockchain", sensorId);
-            return await GetSimulatedBalanceAsync(sensorId);
+            throw new Exception($"Failed to get balance for sensor {sensorId} from blockchain: {ex.Message}");
         }
-    }
-
-    /// <summary>
-    /// Get simulated balance based on recorded transfers
-    /// </summary>
-    private async Task<decimal> GetSimulatedBalanceAsync(int sensorId)
-    {
-        var transfers = await _tokenTransferCollection
-            .Find(t => t.SensorId == sensorId && (t.Status == "completed" || t.Status == "simulated"))
-            .ToListAsync();
-
-        return transfers.Sum(t => t.Amount);
     }
 
     /// <summary>
@@ -387,7 +332,7 @@ public class BlockchainService
         foreach (var wallet in wallets)
         {
             var transfers = await _tokenTransferCollection
-                .Find(t => t.SensorId == wallet.SensorId && (t.Status == "completed" || t.Status == "simulated"))
+                .Find(t => t.SensorId == wallet.SensorId && (t.Status == "completed"))
                 .ToListAsync();
 
             balances.Add(new SensorTokenBalance
@@ -433,8 +378,6 @@ public class BlockchainService
     {
         return new BlockchainStatus
         {
-            Enabled = _config.Enabled,
-            Connected = IsEnabled,
             RpcUrl = _config.RpcUrl,
             ContractAddress = _config.ContractAddress,
             OwnerAddress = _account?.Address ?? "",
@@ -449,8 +392,6 @@ public class BlockchainService
 /// </summary>
 public class BlockchainStatus
 {
-    public bool Enabled { get; set; }
-    public bool Connected { get; set; }
     public string RpcUrl { get; set; } = string.Empty;
     public string ContractAddress { get; set; } = string.Empty;
     public string OwnerAddress { get; set; } = string.Empty;
