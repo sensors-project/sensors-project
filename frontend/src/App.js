@@ -69,7 +69,7 @@ function App() {
   useEffect(() => {
     fetchStats();
     // Auto-refresh stats every 5 seconds
-    const interval = setInterval(fetchStats, 5000);
+    const interval = setInterval(fetchStats, 500);
     return () => clearInterval(interval);
   }, [fetchStats]);
 
@@ -107,7 +107,6 @@ function App() {
     };
 
     fetchData();
-    // Auto-refresh data every 5 seconds
     const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
   }, [filters]);
@@ -225,7 +224,7 @@ function App() {
         {activeTab === 'dashboard' && (
           <section className='dashboard'>
             <h2>Real-time Sensor Dashboard</h2>
-            <p className='auto-refresh-note'>Auto-refreshes every 5 seconds</p>
+            <p className='auto-refresh-note'>Auto-refreshes every 500 miliseconds</p>
             {Object.keys(statsBySensorType).length === 0 ? (
               <p>No sensor data available. Start the sensors to begin collecting data.</p>
             ) : (
