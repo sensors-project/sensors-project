@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Set auto-start mode for Docker deployment
-ENV AUTO_START=true
+ENV AUTO_START=false
 ENV MQTT_BROKER=mosquitto
 ENV MQTT_PORT=1883
 

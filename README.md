@@ -126,6 +126,27 @@ pip install -r requirements.txt
 python main.py
 ```
 
+#### Controlling Sensors
+
+The sensors run in standby mode by default. Use the control script to manage them:
+
+```bash
+# Start all sensors
+python control_sensor.py start_all
+
+# Stop all sensors
+python control_sensor.py stop_all
+
+# Start specific sensor (e.g., ID 1)
+python control_sensor.py start 1
+
+# Stop specific sensor
+python control_sensor.py stop 1
+
+# Set specific value (works even if stopped)
+python control_sensor.py set 1 100.5
+```
+
 ### Blockchain (Smart Contract)
 ```bash
 cd blockchain

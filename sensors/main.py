@@ -1,47 +1,7 @@
-import threading
 import time
 import os
 import sys
 from sensor import *
-
-def input_thread():
-    global programIsRunning
-    while programIsRunning:
-        try:
-            key = int(input())
-            if key == 1:
-                for sensor in all_sensors:
-                    sensor.start()
-                print("Sensors started")
-            elif key == 2:
-                for sensor in all_sensors:
-                    sensor.stop()
-                print("Sensors stopped")
-            elif key == 3:
-                for sensor in all_sensors:
-                    sensor.stop()
-                programIsRunning = False
-                print("Exiting program...")
-            elif key == 4:
-                print("Select a sensor (-1 to cancel):")
-                for i, sensor in enumerate(all_sensors):
-                    print(f"{i}: {sensor.getName()}")
-                try:
-                    choice = int(input())
-                    if choice == -1:
-                        print("Cancelled")
-                    elif 0 <= choice < len(all_sensors):
-                        value = input(f"Enter value to generate for {all_sensors[choice].getName()}: ")
-                        all_sensors[choice].generateValue(value)
-                    else:
-                        print("Invalid number")
-                except ValueError:
-                    print("Please enter a valid number.")
-        except ValueError:
-            print("Please enter a valid number.")
-        except EOFError:
-            # Handle non-interactive mode (Docker)
-            break
 
 # Get MQTT broker configuration from environment variables
 mqtt_broker = os.environ.get('MQTT_BROKER', 'localhost')
@@ -58,23 +18,19 @@ oxygenSensors = [DissolvedOxygenSensor(broker=mqtt_broker, port=mqtt_port) for i
 all_sensors = temperatureSensors + pressureSensors + co2Sensors + oxygenSensors
 
 print(f"Initialized {len(all_sensors)} sensors")
-print("Press 1 to start sensors")
-print("Press 2 to stop sensors")
-print("Press 3 to end program")
-print("Press 4 to produce specified data by specified sensor")
 
-programIsRunning = True
+# Always connect sensors to MQTT so they can receive commands
+print("Connecting sensors to MQTT...")
+for sensor in all_sensors:
+    sensor.connect()
 
-# Check if running in auto-start mode (for Docker)
-auto_start = os.environ.get('AUTO_START', 'false').lower() == 'true'
+print("Sensors initialized in standby mode. Waiting for MQTT commands...")
 
-if auto_start:
-    print("Auto-start mode enabled, starting all sensors...")
+# Keep the main thread alive
+try:
+    while True:
+        time.sleep(1)
+except KeyboardInterrupt:
+    print("Exiting program...")
     for sensor in all_sensors:
-        sensor.start()
-    print("All sensors started")
-else:
-    threading.Thread(target=input_thread, daemon=True).start()
-
-while programIsRunning:
-    time.sleep(0.5)
+        sensor.stop()
