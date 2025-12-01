@@ -95,3 +95,6 @@ sketch
 /blockchain/typechain-types/
 /blockchain/coverage/
 /blockchain/.env
+
+# IDEA
+.idea/
