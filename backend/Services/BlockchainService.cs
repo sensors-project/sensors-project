@@ -29,35 +29,11 @@ public class RewardSensorFunction : FunctionMessage
     public BigInteger SensorId { get; set; }
 }
 
-[Function("rewardOrRegisterSensor")]
-public class RewardOrRegisterSensorFunction : FunctionMessage
-{
-    [Parameter("uint256", "sensorId", 1)]
-    public BigInteger SensorId { get; set; }
-
-    [Parameter("address", "walletAddress", 2)]
-    public string WalletAddress { get; set; } = string.Empty;
-}
-
 [Function("getSensorBalance", "uint256")]
 public class GetSensorBalanceFunction : FunctionMessage
 {
     [Parameter("uint256", "sensorId", 1)]
     public BigInteger SensorId { get; set; }
-}
-
-[Function("getSensorWallet", "address")]
-public class GetSensorWalletFunction : FunctionMessage
-{
-    [Parameter("uint256", "sensorId", 1)]
-    public BigInteger SensorId { get; set; }
-}
-
-[Function("balanceOf", "uint256")]
-public class BalanceOfFunction : FunctionMessage
-{
-    [Parameter("address", "account", 1)]
-    public string Account { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -177,6 +153,7 @@ public class BlockchainService
 
         if (existingWallet != null)
         {
+            await RegisterSensorOnBlockchainAsync(sensorId, existingWallet.WalletAddress);
             return existingWallet;
         }
 
@@ -265,11 +242,9 @@ public class BlockchainService
         {
             var contract = _web3!.Eth.GetContractHandler(_config.ContractAddress);
 
-            // Use rewardOrRegisterSensor which auto-registers if needed
-            var rewardFunction = new RewardOrRegisterSensorFunction
+            var rewardFunction = new RewardSensorFunction
             {
-                SensorId = sensorId,
-                WalletAddress = wallet.WalletAddress
+                SensorId = sensorId
             };
 
             var receipt = await contract.SendRequestAndWaitForReceiptAsync(rewardFunction);
